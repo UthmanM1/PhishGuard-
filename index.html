@@ -89,12 +89,12 @@ async function scan() {
 
         <h3>Attack Flow</h3>
         <ul>
-          ${data.timeline.map(t => `<li>${t}</li>`).join("")}
+        ${(data.timeline || []).map(t => `<li>${t}</li>`).join("")}
         </ul>
 
         <h3>Indicators</h3>
         <ul>
-          ${data.indicators.map(i => `<li>${i.text}</li>`).join("")}
+       ${(data.indicators || []).map(i => `<li>${i.text || "N/A"}</li>`).join("")}
         </ul>
 
         <h3>Recommendations</h3>
