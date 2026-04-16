@@ -1,35 +1,58 @@
 export default async function handler(req, res) {
-  try {
-    const { input, type } = req.body;
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
 
-    if (!input) {
-      return res.status(400).json({ error: "Missing input" });
+  const { input } = req.body;
+
+  // --- BASIC HEURISTIC DETECTION ---
+  function basicCheck(text) {
+    let score = 0;
+    let indicators = [];
+
+    const suspicious = ['urgent','verify','password','bank','login','click'];
+
+    suspicious.forEach(word => {
+      if (text.toLowerCase().includes(word)) {
+        score += 10;
+        indicators.push({ type: 'red', text: `Contains keyword: ${word}` });
+      }
+    });
+
+    if (text.includes('@')) {
+      score += 15;
+      indicators.push({ type: 'red', text: 'Contains @ symbol' });
     }
 
-    const typeLabel =
-      type === "url"
-        ? "URL"
-        : type === "email"
-        ? "email"
-        : "text message";
+    if (/https?:\/\/.*\..*\..*/.test(text)) {
+      score += 10;
+      indicators.push({ type: 'yellow', text: 'Multiple domains detected' });
+    }
 
-    const systemPrompt = `You are PhishGuard, an expert cybersecurity AI.
+    return { score, indicators };
+  }
 
-Return ONLY JSON:
-{
-  "verdict": "PHISHING" | "SUSPICIOUS" | "SAFE",
-  "riskScore": 0-100,
-  "summary": "",
-  "simpleExplanation": "",
-  "attackType": "",
-  "confidence": 0-100,
-  "indicators": [
-    { "type": "red|yellow|green|blue", "text": "" }
-  ],
-  "analysis": "",
-  "recommendations": []
-}`;
+  const basic = basicCheck(input);
 
+  // --- FAST PATH (no AI needed) ---
+  if (basic.score >= 40) {
+    return res.json({
+      verdict: "PHISHING",
+      riskScore: Math.min(100, basic.score + 40),
+      summary: "High-risk phishing indicators detected",
+      indicators: basic.indicators.slice(0, 4),
+      analysis: "Detected known phishing patterns using heuristic rules.",
+      recommendations: [
+        "Do not click links",
+        "Do not enter credentials",
+        "Delete message",
+        "Report sender"
+      ]
+    });
+  }
+
+  // --- AI ANALYSIS ---
+  try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -39,32 +62,31 @@ Return ONLY JSON:
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
-        max_tokens: 900,
-        system: systemPrompt,
-        messages: [
-          {
-            role: "user",
-            content: `Analyse this ${typeLabel}:\n\n${input}`
-          }
-        ]
+        max_tokens: 500,
+        messages: [{
+          role: "user",
+          content: `Analyze for phishing: ${input}
+Return JSON with verdict, riskScore, summary, indicators, analysis, recommendations.`
+        }]
       })
     });
 
     const data = await response.json();
+    const text = data.content[0].text;
 
-    const raw = data.content?.[0]?.text || "{}";
+    const json = JSON.parse(text.match(/\{[\s\S]*\}/)[0]);
 
-    let parsed;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      const match = raw.match(/\{[\s\S]*\}/);
-      parsed = match ? JSON.parse(match[0]) : {};
-    }
-
-    res.status(200).json(parsed);
+    return res.json(json);
 
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    // fallback safe
+    return res.json({
+      verdict: "SUSPICIOUS",
+      riskScore: 50,
+      summary: "Fallback analysis used",
+      indicators: [{ type: "yellow", text: "AI unavailable" }],
+      analysis: "Basic analysis only.",
+      recommendations: ["Be cautious"]
+    });
   }
 }
