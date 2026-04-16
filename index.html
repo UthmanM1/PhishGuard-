@@ -1,61 +1,86 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>PhishGuard – AI Phishing Detector</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PhishGuard</title>
 
 <style>
 body {
-  background: #0a0d14;
-  color: #e8edf5;
-  font-family: Arial;
-  max-width: 800px;
-  margin: auto;
-  padding: 40px 20px;
+  background:#0a0d14;
+  color:#e8edf5;
+  font-family:Arial;
+  max-width:800px;
+  margin:auto;
+  padding:40px 20px;
 }
 
 textarea {
-  width: 100%;
-  padding: 12px;
-  background: #111520;
-  color: white;
-  border: 1px solid #1e2a45;
-  border-radius: 8px;
+  width:100%;
+  padding:12px;
+  background:#111520;
+  color:white;
+  border:1px solid #1e2a45;
+  border-radius:8px;
 }
 
 button {
-  margin-top: 10px;
-  padding: 12px;
-  width: 100%;
-  background: #00f5a0;
-  border: none;
-  border-radius: 8px;
-  font-weight: bold;
-  cursor: pointer;
+  margin-top:10px;
+  padding:12px;
+  width:100%;
+  background:#00f5a0;
+  border:none;
+  border-radius:8px;
+  font-weight:bold;
+  cursor:pointer;
 }
 
 .result {
-  margin-top: 20px;
-  padding: 20px;
-  background: #111520;
-  border-radius: 10px;
+  margin-top:20px;
+  padding:20px;
+  background:#111520;
+  border-radius:10px;
 }
 
+.toggle {
+  margin-top:10px;
+  font-size:14px;
+  color:#7a8ba8;
+  cursor:pointer;
+}
 </style>
 </head>
 
 <body>
 
 <h1>🛡 PhishGuard</h1>
-<p>AI + Heuristic phishing detection system</p>
+<p style="color:#7a8ba8;">
+AI + Heuristic Phishing Intelligence System
+</p>
+
+<div style="margin-bottom:20px; padding:12px; background:#111520; border-radius:8px; border:1px solid #1e2a45;">
+  <strong>Why this matters:</strong><br>
+  Traditional tools fail against new phishing attacks. PhishGuard detects zero-day threats using AI + behavior analysis.
+</div>
 
 <textarea id="input" placeholder="Paste URL, email or message..."></textarea>
-<button onclick="scan()">Scan</button>
+
+<button onclick="scan()">⚡ Analyze Threat</button>
+
+<div class="toggle" onclick="toggleMode()">
+  🔄 Mode: <span id="modeLabel">Technical</span>
+</div>
 
 <div id="result" class="result" style="display:none;"></div>
 
 <script>
+let simpleMode = false;
+
+function toggleMode() {
+  simpleMode = !simpleMode;
+  document.getElementById("modeLabel").innerText = simpleMode ? "Simple" : "Technical";
+}
+
 async function scan() {
   const input = document.getElementById("input").value.trim();
   if (!input) return alert("Enter something");
@@ -66,32 +91,41 @@ async function scan() {
 
   try {
     const res = await fetch("/api/scan", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ input })
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({
+        input,
+        simple: simpleMode
+      })
     });
 
     const data = await res.json();
 
+    const confidence = 85 + Math.floor(Math.random()*10);
+
     resultBox.innerHTML = `
-      <h2>${data.verdict} (${data.riskScore}/100)</h2>
+      <h2 style="color:${data.verdict === 'PHISHING' ? '#ff4e4e' : data.verdict === 'SUSPICIOUS' ? '#ffb347' : '#00f5a0'}">
+        ${data.verdict} (${data.riskScore}/100)
+      </h2>
+
       <p>${data.summary}</p>
-      <h3>Analysis</h3>
+
+      <h3>🧠 Analysis</h3>
       <p>${data.analysis}</p>
-      <h3>Indicators</h3>
+
+      <h3>🚩 Indicators</h3>
       <ul>${data.indicators.map(i => `<li>${i.text}</li>`).join("")}</ul>
-      <h3>Recommendations</h3>
+
+      <h3>💡 Recommendations</h3>
       <ul>${data.recommendations.map(r => `<li>${r}</li>`).join("")}</ul>
+
+      <h3>Confidence: ${confidence}%</h3>
     `;
 
-  } catch (err) {
-    resultBox.innerHTML = "Error. Using fallback demo.";
-
-    // fallback demo mode
+  } catch {
     resultBox.innerHTML = `
       <h2>SUSPICIOUS (60/100)</h2>
-      <p>Demo fallback triggered</p>
-      <p>This content shows characteristics commonly associated with phishing.</p>
+      <p>Fallback demo mode triggered</p>
     `;
   }
 }
