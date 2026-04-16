@@ -2,156 +2,98 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>PhishGuard – AI Phishing Co-Pilot</title>
-
-<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PhishGuard – AI Phishing Detector</title>
 
 <style>
 body {
-  background:#0a0d14;
-  color:#e8edf5;
-  font-family:'DM Sans',sans-serif;
-  max-width:800px;
-  margin:auto;
-  padding:2rem;
+  background: #0a0d14;
+  color: #e8edf5;
+  font-family: Arial;
+  max-width: 800px;
+  margin: auto;
+  padding: 40px 20px;
 }
 
-textarea, button {
-  width:100%;
-  padding:12px;
-  margin-top:10px;
-  border-radius:8px;
-  border:none;
+textarea {
+  width: 100%;
+  padding: 12px;
+  background: #111520;
+  color: white;
+  border: 1px solid #1e2a45;
+  border-radius: 8px;
 }
 
 button {
-  background:#00f5a0;
-  font-weight:bold;
-  cursor:pointer;
+  margin-top: 10px;
+  padding: 12px;
+  width: 100%;
+  background: #00f5a0;
+  border: none;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
 }
 
-.card {
-  background:#111520;
-  padding:1rem;
-  border-radius:10px;
-  margin-top:1rem;
+.result {
+  margin-top: 20px;
+  padding: 20px;
+  background: #111520;
+  border-radius: 10px;
 }
 
-.small { font-size:0.8rem; color:#7a8ba8; }
 </style>
 </head>
 
 <body>
 
 <h1>🛡 PhishGuard</h1>
-<p class="small">AI cybersecurity assistant for everyday users</p>
+<p>AI + Heuristic phishing detection system</p>
 
-<div class="card">
-  <button onclick="loadExample('phishing')">⚠ Try Phishing Example</button>
-  <button onclick="loadExample('safe')">✅ Try Safe Example</button>
-</div>
+<textarea id="input" placeholder="Paste URL, email or message..."></textarea>
+<button onclick="scan()">Scan</button>
 
-<textarea id="mainInput" placeholder="Paste URL, email, or text..."></textarea>
-
-<button onclick="runScan()">⚡ Scan</button>
-
-<div id="result" class="card" style="display:none;"></div>
+<div id="result" class="result" style="display:none;"></div>
 
 <script>
-let currentTab = "text";
+async function scan() {
+  const input = document.getElementById("input").value.trim();
+  if (!input) return alert("Enter something");
 
-/* EXAMPLES */
-function loadExample(type){
-  const examples={
-    phishing:"URGENT: Your PayPal account is locked. Verify now: http://paypa1-secure-login.xyz",
-    safe:"Hi, just confirming our meeting tomorrow at 2pm. Thanks!"
-  };
-  document.getElementById("mainInput").value = examples[type];
-}
+  const resultBox = document.getElementById("result");
+  resultBox.style.display = "block";
+  resultBox.innerHTML = "Analyzing...";
 
-/* MAIN SCAN */
-async function runScan(){
-  const input = document.getElementById("mainInput").value.trim();
-
-  if(!input){
-    alert("Paste something first");
-    return;
-  }
-
-  try{
-    const res = await fetch("/api/scan",{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({ input, type: currentTab })
+  try {
+    const res = await fetch("/api/scan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ input })
     });
 
-    if(!res.ok){
-      throw new Error("API failed");
-    }
+    const data = await res.json();
 
-    const result = await res.json();
+    resultBox.innerHTML = `
+      <h2>${data.verdict} (${data.riskScore}/100)</h2>
+      <p>${data.summary}</p>
+      <h3>Analysis</h3>
+      <p>${data.analysis}</p>
+      <h3>Indicators</h3>
+      <ul>${data.indicators.map(i => `<li>${i.text}</li>`).join("")}</ul>
+      <h3>Recommendations</h3>
+      <ul>${data.recommendations.map(r => `<li>${r}</li>`).join("")}</ul>
+    `;
 
-    if(!result || !result.verdict){
-      throw new Error("Invalid response");
-    }
+  } catch (err) {
+    resultBox.innerHTML = "Error. Using fallback demo.";
 
-    render(result);
-
-  }catch(err){
-    console.warn("Using demo mode:", err);
-    runDemoMode();
+    // fallback demo mode
+    resultBox.innerHTML = `
+      <h2>SUSPICIOUS (60/100)</h2>
+      <p>Demo fallback triggered</p>
+      <p>This content shows characteristics commonly associated with phishing.</p>
+    `;
   }
-}
-
-/* DEMO MODE (IMPORTANT) */
-function runDemoMode(){
-  const demo = {
-    verdict:"PHISHING",
-    riskScore:88,
-    summary:"This appears to be a phishing attempt.",
-    simpleExplanation:"This message is trying to trick you into giving your password by pretending to be a trusted company.",
-    attackType:"Credential Harvesting",
-    confidence:92,
-    analysis:"The message uses urgency and a fake domain to impersonate a trusted service.",
-    recommendations:[
-      "Do not click any links",
-      "Verify via official website",
-      "Report as phishing",
-      "Delete immediately"
-    ]
-  };
-
-  render(demo);
-}
-
-/* RENDER RESULT */
-function render(r){
-  const el = document.getElementById("result");
-  el.style.display = "block";
-
-  el.innerHTML = `
-    <h2>${r.verdict} (${r.riskScore}/100)</h2>
-    <p><strong>${r.summary}</strong></p>
-
-    <p>🎯 Attack Type: ${r.attackType || "Unknown"}</p>
-    <p>📊 Confidence: ${r.confidence || 80}%</p>
-
-    <div class="card">
-      <strong>🧠 Simple Explanation</strong>
-      <p>${r.simpleExplanation || "This message may be unsafe."}</p>
-    </div>
-
-    <div class="card">
-      <strong>🔍 Analysis</strong>
-      <p>${r.analysis}</p>
-    </div>
-
-    <div class="card">
-      <strong>💡 What to do</strong>
-      <ul>${(r.recommendations || []).map(x=>`<li>${x}</li>`).join("")}</ul>
-    </div>
-  `;
 }
 </script>
 
