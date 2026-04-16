@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PhishGuard – AI Phishing Detector</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0d14;
+      --surface: #111520;
+      --card: #161b2e;
+      --border: #1e2a45;
+      --accent: #00f5a0;
+      --accent2: #00b4ff;
+      --danger: #ff4e4e;
+      --warn: #ffb347;
+      --text: #e8edf5;
+      --muted: #7a8ba8;
+      --mono: 'Space Mono', monospace;
+      --sans: 'DM Sans', sans-serif;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Grid background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0,245,160,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,245,160,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 3rem 1.5rem 5rem;
+    }
+
+    /* Header */
+    .header {
+      text-align: center;
+      margin-bottom: 3rem;
+    }
+
+    .logo {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 1.5rem;
+    }
+
+    .logo-icon {
+      width: 48px;
+      height: 48px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+    }
+
+    .logo-text {
+      font-family: var(--mono);
+      font-size: 1.8rem;
+      font-weight: 700;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .tagline {
+      color: var(--muted);
+      font-size: 1rem;
+      font-weight: 300;
+      letter-spacing: 0.04em;
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 6px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 6px;
+      margin-bottom: 1.5rem;
+    }
+
+    .tab {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-family: var(--sans);
+      font-size: 0.9rem;
+      font-weight: 500;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab.active {
+      background: var(--card);
+      color: var(--accent);
+      border: 1px solid var(--border);
+    }
+
+    /* Input card */
+    .input-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 2rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .input-label {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--accent);
+      letter-spacing: 0.1em;
+      margin-bottom: 10px;
+      display: block;
+    }
+
+    .input-field {
+      width: 100%;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 0.9rem;
+      resize: vertical;
+      min-height: 100px;
+      transition: border-color 0.2s;
+      outline: none;
+    }
+
+    .input-field:focus {
+      border-color: var(--accent2);
+    }
+
+    .input-field::placeholder { color: var(--muted); }
+
+    .hint {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 8px;
+    }
+
+    /* Scan button */
+    .scan-btn {
+      width: 100%;
+      margin-top: 1.5rem;
+      padding: 16px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border: none;
+      border-radius: 10px;
+      color: #0a0d14;
+      font-family: var(--mono);
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 0.05em;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+
+    .scan-btn:hover { opacity: 0.9; }
+    .scan-btn:active { transform: scale(0.99); }
+    .scan-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Loading state */
+    .loading {
+      display: none;
+      text-align: center;
+      padding: 2.5rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      margin-bottom: 1.5rem;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 1rem;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading-text {
+      font-family: var(--mono);
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    /* Result card */
+    .result-card {
+      display: none;
+      background: var(--surface);
+      border-radius: 16px;
+      overflow: hidden;
+      margin-bottom: 1.5rem;
+    }
+
+    .result-header {
+      padding: 1.5rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .result-header.safe { background: rgba(0,245,160,0.08); border-bottom: 1px solid rgba(0,245,160,0.2); }
+    .result-header.danger { background: rgba(255,78,78,0.08); border-bottom: 1px solid rgba(255,78,78,0.2); }
+    .result-header.warning { background: rgba(255,179,71,0.08); border-bottom: 1px solid rgba(255,179,71,0.2); }
+
+    .verdict-icon {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      flex-shrink: 0;
+    }
+
+    .verdict-icon.safe { background: rgba(0,245,160,0.15); }
+    .verdict-icon.danger { background: rgba(255,78,78,0.15); }
+    .verdict-icon.warning { background: rgba(255,179,71,0.15); }
+
+    .verdict-title {
+      font-family: var(--mono);
+      font-size: 1.3rem;
+      font-weight: 700;
+    }
+
+    .verdict-title.safe { color: var(--accent); }
+    .verdict-title.danger { color: var(--danger); }
+    .verdict-title.warning { color: var(--warn); }
+
+    .verdict-subtitle {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .result-body {
+      padding: 1.5rem 2rem;
+    }
+
+    /* Risk score bar */
+    .risk-section {
+      margin-bottom: 1.5rem;
+    }
+
+    .risk-label {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .risk-bar-track {
+      height: 6px;
+      background: var(--card);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .risk-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 1s ease;
+    }
+
+    /* Indicators */
+    .indicators {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 1.5rem;
+    }
+
+    @media (max-width: 600px) { .indicators { grid-template-columns: 1fr; } }
+
+    .indicator {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .indicator-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-top: 5px;
+      flex-shrink: 0;
+    }
+
+    .dot-red { background: var(--danger); }
+    .dot-green { background: var(--accent); }
+    .dot-yellow { background: var(--warn); }
+    .dot-blue { background: var(--accent2); }
+
+    .indicator-text {
+      font-size: 0.83rem;
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    /* Analysis section */
+    .analysis-section {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.2rem 1.4rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .section-title {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      color: var(--accent2);
+      letter-spacing: 0.1em;
+      margin-bottom: 10px;
+    }
+
+    .analysis-text {
+      font-size: 0.88rem;
+      color: var(--text);
+      line-height: 1.7;
+    }
+
+    /* Recommendations */
+    .recs { list-style: none; }
+    .recs li {
+      font-size: 0.85rem;
+      color: var(--text);
+      padding: 7px 0;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      line-height: 1.5;
+    }
+    .recs li:last-child { border-bottom: none; }
+    .rec-arrow { color: var(--accent); flex-shrink: 0; font-family: var(--mono); }
+
+    /* Reset button */
+    .reset-btn {
+      width: 100%;
+      padding: 12px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .reset-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+
+    /* Stats bar */
+    .stats {
+      display: flex;
+      gap: 1px;
+      background: var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      margin-bottom: 2rem;
+    }
+
+    .stat {
+      flex: 1;
+      background: var(--surface);
+      padding: 14px 10px;
+      text-align: center;
+    }
+
+    .stat-number {
+      font-family: var(--mono);
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .stat-label {
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    /* Error */
+    .error-msg {
+      display: none;
+      background: rgba(255,78,78,0.08);
+      border: 1px solid rgba(255,78,78,0.3);
+      border-radius: 10px;
+      padding: 1rem 1.2rem;
+      color: var(--danger);
+      font-size: 0.85rem;
+      margin-bottom: 1.5rem;
+      font-family: var(--mono);
+    }
+
+    .api-note {
+      background: rgba(0,180,255,0.06);
+      border: 1px solid rgba(0,180,255,0.2);
+      border-radius: 10px;
+      padding: 1rem 1.2rem;
+      margin-bottom: 1.5rem;
+      font-size: 0.82rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .api-note strong { color: var(--accent2); }
+
+    .api-key-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .api-key-input {
+      flex: 1;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 9px 12px;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      outline: none;
+    }
+
+    .api-key-input:focus { border-color: var(--accent2); }
+    .api-key-input::placeholder { color: var(--muted); }
+
+    .save-btn {
+      padding: 9px 16px;
+      background: var(--card);
+      border: 1px solid var(--accent2);
+      border-radius: 8px;
+      color: var(--accent2);
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .save-btn:hover { background: rgba(0,180,255,0.1); }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <div class="logo">
+      <div class="logo-icon">🛡</div>
+      <span class="logo-text">PhishGuard</span>
+    </div>
+    <p class="tagline">AI-powered phishing detection for URLs &amp; email content</p>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="stat-number">3.4B</div><div class="stat-label">phishing emails/day</div></div>
+    <div class="stat"><div class="stat-number">36%</div><div class="stat-label">of breaches use phishing</div></div>
+    <div class="stat"><div class="stat-number">$4.9M</div><div class="stat-label">avg breach cost</div></div>
+    <div class="stat"><div class="stat-number">AI</div><div class="stat-label">powered analysis</div></div>
+  </div>
+
+  <div class="api-note">
+    <strong>Setup required:</strong> Enter your <a href="https://console.anthropic.com/" style="color: var(--accent2);">Anthropic API key</a> below to enable AI analysis. Your key is stored locally in your browser only.
+    <div class="api-key-row">
+      <input class="api-key-input" type="password" id="apiKeyInput" placeholder="sk-ant-api03-..." />
+      <button class="save-btn" onclick="saveKey()">Save</button>
+    </div>
+    <div id="keyStatus" style="font-size:0.75rem; margin-top:6px;"></div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('url', this)">🔗 URL Scanner</button>
+    <button class="tab" onclick="switchTab('email', this)">📧 Email Analyser</button>
+    <button class="tab" onclick="switchTab('text', this)">📝 Text Scanner</button>
+  </div>
+
+  <!-- Input card -->
+  <div class="input-card">
+    <label class="input-label" id="inputLabel">// PASTE SUSPICIOUS URL</label>
+    <textarea
+      class="input-field"
+      id="mainInput"
+      placeholder="https://paypa1-secure-login.xyz/verify?user=..."
+      rows="4"
+    ></textarea>
+    <p class="hint" id="inputHint">Paste any URL you want to analyse for phishing indicators.</p>
+    <button class="scan-btn" id="scanBtn" onclick="runScan()">⚡ SCAN NOW</button>
+  </div>
+
+  <!-- Error -->
+  <div class="error-msg" id="errorMsg"></div>
+
+  <!-- Loading -->
+  <div class="loading" id="loadingState">
+    <div class="spinner"></div>
+    <div class="loading-text" id="loadingText">Initialising AI analysis...</div>
+  </div>
+
+  <!-- Result -->
+  <div class="result-card" id="resultCard">
+    <div class="result-header" id="resultHeader">
+      <div class="verdict-icon" id="verdictIcon"></div>
+      <div>
+        <div class="verdict-title" id="verdictTitle"></div>
+        <div class="verdict-subtitle" id="verdictSubtitle"></div>
+      </div>
+    </div>
+    <div class="result-body">
+      <div class="risk-section">
+        <div class="risk-label">
+          <span>// RISK SCORE</span>
+          <span id="riskScoreLabel">0/100</span>
+        </div>
+        <div class="risk-bar-track">
+          <div class="risk-bar-fill" id="riskBarFill" style="width:0%"></div>
+        </div>
+      </div>
+
+      <div class="indicators" id="indicatorGrid"></div>
+
+      <div class="analysis-section">
+        <div class="section-title">// AI ANALYSIS</div>
+        <div class="analysis-text" id="analysisText"></div>
+      </div>
+
+      <div class="analysis-section">
+        <div class="section-title">// RECOMMENDATIONS</div>
+        <ul class="recs" id="recsList"></ul>
+      </div>
+
+      <button class="reset-btn" onclick="resetApp()">↩ Scan another</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  let currentTab = 'url';
+  let apiKey = localStorage.getItem('phishguard_key') || '';
+
+  if (apiKey) {
+    document.getElementById('apiKeyInput').value = apiKey;
+    document.getElementById('keyStatus').innerHTML = '<span style="color:var(--accent)">✓ API key loaded</span>';
+  }
+
+  function saveKey() {
+    const val = document.getElementById('apiKeyInput').value.trim();
+    if (!val.startsWith('sk-ant')) {
+      document.getElementById('keyStatus').innerHTML = '<span style="color:var(--danger)">Invalid key format</span>';
+      return;
+    }
+    apiKey = val;
+    localStorage.setItem('phishguard_key', val);
+    document.getElementById('keyStatus').innerHTML = '<span style="color:var(--accent)">✓ Saved successfully</span>';
+  }
+
+  function switchTab(tab, el) {
+    currentTab = tab;
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    const configs = {
+      url: {
+        label: '// PASTE SUSPICIOUS URL',
+        placeholder: 'https://paypa1-secure-login.xyz/verify?user=...',
+        hint: 'Paste any URL you want to analyse for phishing indicators.',
+        rows: 2
+      },
+      email: {
+        label: '// PASTE EMAIL CONTENT',
+        placeholder: 'Subject: URGENT - Your account has been compromised\n\nDear Customer,\nWe have detected suspicious activity...',
+        hint: 'Paste the full email body or just the suspicious parts.',
+        rows: 6
+      },
+      text: {
+        label: '// PASTE SUSPICIOUS TEXT / MESSAGE',
+        placeholder: 'You have won a prize! Click here to claim: http://...',
+        hint: 'Paste SMS, chat messages, or any text you want to verify.',
+        rows: 4
+      }
+    };
+    const c = configs[tab];
+    document.getElementById('inputLabel').textContent = c.label;
+    document.getElementById('mainInput').placeholder = c.placeholder;
+    document.getElementById('mainInput').rows = c.rows;
+    document.getElementById('inputHint').textContent = c.hint;
+    document.getElementById('mainInput').value = '';
+    resetApp();
+  }
+
+  function setLoading(text) {
+    document.getElementById('loadingState').style.display = 'block';
+    document.getElementById('loadingText').textContent = text;
+    document.getElementById('resultCard').style.display = 'none';
+    document.getElementById('errorMsg').style.display = 'none';
+    document.getElementById('scanBtn').disabled = true;
+  }
+
+  function setLoadingText(text) {
+    document.getElementById('loadingText').textContent = text;
+  }
+
+  function resetApp() {
+    document.getElementById('loadingState').style.display = 'none';
+    document.getElementById('resultCard').style.display = 'none';
+    document.getElementById('errorMsg').style.display = 'none';
+    document.getElementById('scanBtn').disabled = false;
+  }
+
+  function showError(msg) {
+    document.getElementById('loadingState').style.display = 'none';
+    document.getElementById('errorMsg').style.display = 'block';
+    document.getElementById('errorMsg').textContent = '⚠ ' + msg;
+    document.getElementById('scanBtn').disabled = false;
+  }
+
+  async function runScan() {
+    const input = document.getElementById('mainInput').value.trim();
+    if (!input) { showError('Please paste content to scan.'); return; }
+    if (!apiKey) { showError('Please enter your Anthropic API key above first.'); return; }
+
+    setLoading('Sending to AI analysis engine...');
+
+    const typeLabel = { url: 'URL', email: 'email', text: 'text message or SMS' }[currentTab];
+
+    const systemPrompt = `You are PhishGuard, an expert cybersecurity AI specialising in phishing detection. Analyse the provided ${typeLabel} and return ONLY a valid JSON object with this exact structure — no markdown, no extra text:
+{
+  "verdict": "PHISHING" | "SUSPICIOUS" | "SAFE",
+  "riskScore": <integer 0-100>,
+  "summary": "<1 sentence verdict>",
+  "indicators": [
+    { "type": "red" | "yellow" | "green" | "blue", "text": "<short indicator description>" }
+  ],
+  "analysis": "<2-3 sentence detailed analysis explaining why>",
+  "recommendations": ["<actionable recommendation>", ...]
+}
+
+Rules:
+- indicators: 4 items, mix of red (threat), yellow (suspicious), green (safe signs), blue (informational)
+- recommendations: 3-4 items, specific and actionable
+- riskScore: 0-30 = safe, 31-60 = suspicious, 61-100 = phishing
+- Be precise and professional`;
+
+    try {
+      setLoadingText('AI model processing indicators...');
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          system: systemPrompt,
+          messages: [{ role: 'user', content: `Analyse this ${typeLabel}:\n\n${input}` }]
+        })
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error?.message || `API error ${response.status}`);
+      }
+
+      setLoadingText('Rendering results...');
+      const data = await response.json();
+      const rawText = data.content[0].text.trim();
+
+      let result;
+      try {
+        result = JSON.parse(rawText);
+      } catch {
+        const match = rawText.match(/\{[\s\S]*\}/);
+        if (match) result = JSON.parse(match[0]);
+        else throw new Error('Could not parse AI response');
+      }
+
+      renderResult(result);
+    } catch (err) {
+      showError(err.message || 'Something went wrong. Check your API key and try again.');
+    }
+  }
+
+  function renderResult(r) {
+    document.getElementById('loadingState').style.display = 'none';
+    document.getElementById('scanBtn').disabled = false;
+
+    const level = r.verdict === 'PHISHING' ? 'danger' : r.verdict === 'SUSPICIOUS' ? 'warning' : 'safe';
+    const icons = { danger: '🚨', warning: '⚠️', safe: '✅' };
+    const labels = { danger: 'PHISHING DETECTED', warning: 'SUSPICIOUS CONTENT', safe: 'LOOKS SAFE' };
+
+    document.getElementById('resultHeader').className = 'result-header ' + level;
+    document.getElementById('verdictIcon').className = 'verdict-icon ' + level;
+    document.getElementById('verdictIcon').textContent = icons[level];
+    document.getElementById('verdictTitle').className = 'verdict-title ' + level;
+    document.getElementById('verdictTitle').textContent = labels[level];
+    document.getElementById('verdictSubtitle').textContent = r.summary;
+
+    const score = Math.min(100, Math.max(0, r.riskScore));
+    document.getElementById('riskScoreLabel').textContent = score + '/100';
+    const fillEl = document.getElementById('riskBarFill');
+    const barColor = score >= 61 ? 'var(--danger)' : score >= 31 ? 'var(--warn)' : 'var(--accent)';
+    fillEl.style.background = barColor;
+    fillEl.style.width = '0%';
+    setTimeout(() => { fillEl.style.width = score + '%'; }, 100);
+
+    const dotMap = { red: 'dot-red', yellow: 'dot-yellow', green: 'dot-green', blue: 'dot-blue' };
+    const grid = document.getElementById('indicatorGrid');
+    grid.innerHTML = '';
+    (r.indicators || []).forEach(ind => {
+      grid.innerHTML += `<div class="indicator">
+        <div class="indicator-dot ${dotMap[ind.type] || 'dot-blue'}"></div>
+        <div class="indicator-text">${ind.text}</div>
+      </div>`;
+    });
+
+    document.getElementById('analysisText').textContent = r.analysis;
+
+    const recsList = document.getElementById('recsList');
+    recsList.innerHTML = '';
+    (r.recommendations || []).forEach(rec => {
+      recsList.innerHTML += `<li><span class="rec-arrow">→</span><span>${rec}</span></li>`;
+    });
+
+    document.getElementById('resultCard').style.display = 'block';
+    document.getElementById('resultCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+</script>
+</body>
+</html>
