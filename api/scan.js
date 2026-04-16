@@ -3,19 +3,19 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { input } = req.body;
+  const { input, simple } = req.body;
 
-  // --- BASIC HEURISTIC DETECTION ---
+  // --- HEURISTIC DETECTION ---
   function basicCheck(text) {
     let score = 0;
     let indicators = [];
 
-    const suspicious = ['urgent','verify','password','bank','login','click'];
+    const keywords = ['urgent','verify','password','bank','login','click'];
 
-    suspicious.forEach(word => {
+    keywords.forEach(word => {
       if (text.toLowerCase().includes(word)) {
         score += 10;
-        indicators.push({ type: 'red', text: `Contains keyword: ${word}` });
+        indicators.push({ type: 'red', text: `Suspicious keyword: ${word}` });
       }
     });
 
@@ -34,14 +34,18 @@ export default async function handler(req, res) {
 
   const basic = basicCheck(input);
 
-  // --- FAST PATH (no AI needed) ---
+  // --- FAST DETECTION ---
   if (basic.score >= 40) {
     return res.json({
       verdict: "PHISHING",
       riskScore: Math.min(100, basic.score + 40),
-      summary: "High-risk phishing indicators detected",
+      summary: simple
+        ? "This looks like a scam trying to trick you."
+        : "High-risk phishing indicators detected",
       indicators: basic.indicators.slice(0, 4),
-      analysis: "Detected known phishing patterns using heuristic rules.",
+      analysis: simple
+        ? "This message uses common tricks scammers use, like urgency or fake links."
+        : "Detected multiple known phishing patterns using heuristic analysis.",
       recommendations: [
         "Do not click links",
         "Do not enter credentials",
@@ -53,40 +57,49 @@ export default async function handler(req, res) {
 
   // --- AI ANALYSIS ---
   try {
+    const prompt = simple
+      ? `Explain simply if this is phishing: ${input}`
+      : `Analyze for phishing and return JSON with verdict, riskScore, summary, indicators, analysis, recommendations: ${input}`;
+
     const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
         "x-api-key": process.env.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01"
+        "anthropic-version":"2023-06-01"
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 500,
-        messages: [{
-          role: "user",
-          content: `Analyze for phishing: ${input}
-Return JSON with verdict, riskScore, summary, indicators, analysis, recommendations.`
-        }]
+        model:"claude-sonnet-4-20250514",
+        max_tokens:500,
+        messages:[{ role:"user", content: prompt }]
       })
     });
 
     const data = await response.json();
     const text = data.content[0].text;
 
-    const json = JSON.parse(text.match(/\{[\s\S]*\}/)[0]);
+    if (simple) {
+      return res.json({
+        verdict:"SUSPICIOUS",
+        riskScore:50,
+        summary:"AI simplified explanation",
+        indicators:[{ type:"blue", text:"AI explanation mode" }],
+        analysis:text,
+        recommendations:["Be cautious"]
+      });
+    }
 
+    const json = JSON.parse(text.match(/\{[\s\S]*\}/)[0]);
     return res.json(json);
 
-  } catch (err) {
-    // fallback safe
+  } catch {
     return res.json({
-      verdict: "SUSPICIOUS",
-      riskScore: 50,
-      summary: "Fallback analysis used",
-      indicators: [{ type: "yellow", text: "AI unavailable" }],
-      analysis: "Basic analysis only.",
-      recommendations: ["Be cautious"]
+      verdict:"SUSPICIOUS",
+      riskScore:50,
+      summary:"Fallback analysis",
+      indicators:[{ type:"yellow", text:"AI unavailable" }],
+      analysis:"Basic detection used.",
+      recommendations:["Be cautious"]
     });
   }
 }
