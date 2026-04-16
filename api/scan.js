@@ -5,28 +5,55 @@ export default async function handler(req, res) {
 
   const { input } = req.body;
 
-  const prompt = `
-You are PhishGuard AI.
+ const prompt = `
+You are PhishGuard AI, a cybersecurity analyst.
 
-Return ONLY JSON:
+Return ONLY valid JSON. NEVER omit fields.
 
 {
   "verdict": "PHISHING" | "SUSPICIOUS" | "SAFE",
   "riskScore": number,
   "confidence": number,
   "summary": "",
+
   "attackType": "",
+
   "technicalBreakdown": {
     "domainAnalysis": "",
     "languageAnalysis": ""
   },
-  "timeline": [],
-  "indicators": [],
-  "recommendations": [],
+
+  "timeline": [
+    "Step 1",
+    "Step 2",
+    "Step 3"
+  ],
+
+  "indicators": [
+    { "type": "red", "text": "" },
+    { "type": "yellow", "text": "" },
+    { "type": "green", "text": "" },
+    { "type": "blue", "text": "" }
+  ],
+
+  "recommendations": [
+    "",
+    "",
+    ""
+  ],
+
   "educationalTip": ""
 }
 
-Analyze:
+RULES:
+- ALWAYS include ALL fields
+- indicators MUST be exactly 4 items
+- timeline MUST be at least 3 steps (even if safe)
+- If SAFE → still provide benign explanation
+- Never return undefined or empty arrays
+- Be specific and realistic
+
+Analyze this input:
 ${input}
 `;
 
